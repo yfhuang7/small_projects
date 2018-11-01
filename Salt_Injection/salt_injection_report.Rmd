@@ -1,0 +1,191 @@
+---
+title: "Add Some Taste - Salt Injection"
+author: "Yu-Fen Huang, Yin-Phan Tsang (Advisor)"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+<style type="text/css">
+
+h1.title {
+  font-size: 38px;
+  color: Black;
+  text-align: center;
+}
+h4.author { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: Black;
+  text-align: center;
+}
+h4.date { /* Header 4 - and the author and data headers use this too  */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: Black;
+  text-align: center;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r opts, echo = FALSE}
+knitr::opts_chunk$set(
+  fig.path = "result/"
+)
+```
+
+```{r basic_info, message=FALSE, warning=FALSE, include=F}
+### Discharge_salt_injection.R ##################
+#
+#   Purpose: calculate discharge by salt injection
+#
+#   Input
+#     : sp.conductance sheets from YSI, please name "Salt_Injection_YYYYMMDD.csv"
+#     : record for stnadard curve
+#
+#   Created by yfhuang 20170922
+#################################################
+
+#clean the working space
+rm(list = ls(all = TRUE))
+ls(all = TRUE)
+
+### Environment Setting --------
+setwd("C:/Users/Yu-Fen Huang/GoogleDrive_yfhuang/R_Script/R_workplace/Salt_Injection")  
+
+### Information Input (need to re-fill everytime)----------
+# genral
+Date<-"20180516"         # YYYYMMDD
+Sensor<-"KUBO"
+file.data<-paste("./data/Salt_Injection_",Sensor,"_",Date,".csv",sep = "")
+InjectionTime<-"10:12"   # Salt Injection time
+LogInterval<-5           # YSI logging interval (s)
+Weather<-"cloudy but rain earlier"
+discharge_FlowMeter_cms<-0.022  
+station<-"Lyon"
+
+StandardCurveTime<-"13:02"
+
+Salt_mg<-c(0,120,240,0)             # Salt amount (mg) for upstream, jar1, jar2, downstream
+StreamWater_L<-c(1,0.6,0.6,NA)      # Streamwater (L) for the jars, and upstream != 0, downstream = NA for caluclation
+Specific_Conductance_us.cm<-c(109.6,499.8,925,109.5)  # Sp. Conductance (us/cm)
+Temperature_C<-c(21.,21.5,21.5,21)   # Temperautre (degree C)
+Concentration_mg.L<-Salt_mg/StreamWater_L   # Concentration (mg/L)
+
+StandardCurve<-data.frame(Salt_mg=Salt_mg, StreamWater_L=StreamWater_L, 
+                          Concentration_mg.L=Concentration_mg.L, 
+                          Specific_Conductance_us.cm=Specific_Conductance_us.cm,
+                          Temperature_C=Temperature_C)
+
+
+```
+
+```{r Standard_Curve, message=F, warning=F, include=FALSE}
+### Caluclate Standard Curve
+# linear fitting
+fit<-lm(Concentration_mg.L~Specific_Conductance_us.cm, StandardCurve)
+
+# plot
+png(paste("./result/SC",Date,".png",sep = ""),
+    width=1000, height=800, units="px",pointsize=26,bg="white")
+{plot(StandardCurve$Specific_Conductance_us.cm, StandardCurve$Concentration_mg.L,
+     main = paste("Standard Curve for Salt Injection at ", InjectionTime, " on ", Date, sep = ""),
+     xlab = expression(paste("Sp. Cond (",mu, "s/cm)",sep = "")),
+     ylab = "Concentration (mg/L)")
+abline(fit$coefficients, lty=6, col="red")
+cf <- round(coef(fit), 2)
+text(650,50, labels = paste("Concentration =",cf[1], ifelse(sign(cf[2])==1, " + ", " - "), 
+                            abs(cf[2]), " Sp.Cond ", sep = " "))}
+dev.off()
+
+```
+<br/>
+<br/>
+<br/>
+
+# Introduction
+<br/>
+We used two methods to measure the stream discharge: the cross-section area with a current-meter (SonTek FlowTracker Handheld-ADV® (Acoustic Doppler Velocimeter) and the salt injection (Moore, 2003, 2005). Measuring cross-section with current-meter is convenient and widely used in the field (Young. 1950). Yet, the measurement at low flow or turbulent condition could lead to potential errors, despite the Acoustic Doppler probe has minimum depth at 0.02 m in the specification. On the other hand, salt injection requires preparation yet is accurate and not limited by the size of the streams (Moore, 2003). We therefore has flow measured with both methods to validate and ensure the accuracy in flow measurement for building the rating curve.  
+
+In Hawaii, we have many small streams with turbulent and mountain conditions that give flow measurement some challenges. Yet, no one conduct and evalulate the alternative way of flow measurement. We first applied both salt injection and current meter at ??Aihualama in Lyon Arboretum, and the discharges from the current meter is 78% of the discharges from the salt injection. If salt injection really compensate the disadvantage of current meter, it indicates the possibility of general underestimate streamflow at small mountain streams in Hawaii.
+
+<br/>
+<br/>
+
+# Salt Injection
+<br/>
+The salt injection can be used for the flow greater than \(10 m^3 s^{-1}\), and additionally it works well in steep highly turbulent streams (Moore 2005). The concentration of the salt in stream water can be calculated by the electrical conductivity.  
+
+The discharge (\(m^3 s^{-1}\)) of tracer solution \(q(t)=Q×RC(t)\) where Q (\(m^3 s^{-1}\)) is the stream discharge; \(RC(t)\) is the relative concentration of tracer solution (\(L/L\)) at the flow time (\(t\)).
+
+<br/>
+<br/>
+
+
+# Relationship between Salt Injection and Flow Meter
+
+### Measurement at Lyon Arboretum
+```{r salt_injection_all, echo=F, message=F, warning=F}
+### Read YSI data --------------
+
+ysi<-read.csv(file.data)
+ysi$CFK<-(ysi$Specific.Conductance..uS.cm.-ysi$Specific.Conductance..uS.cm.[1])*fit$coefficients[2]
+
+discharge_SaltInjection_cms<-1000/(sum(ysi$CFK)*LogInterval)
+
+
+### Write the discharge sheets ------------
+End_Time<-substr(strptime(as.character(ysi$Timestamp[nrow(ysi)]),"%m/%d/%Y %H:%M:%S"),12,16)
+output<-data.frame(Date=as.Date(Date,"%Y%m%d"), Station=station,
+                   Start_Time=InjectionTime, End_Time=End_Time,
+                   FlowMeter_Time=InjectionTime,
+                   FlowMeter_Discharge_cms=discharge_FlowMeter_cms,
+                   SaltInjection_Discharge_cms=discharge_SaltInjection_cms,
+                   Weather=Weather)
+
+data<-read.table("./result/Salt_Injection_Discharge.txt", header = T, sep = "")
+data[,c(1:5,8)]<-lapply(data[,c(1:5,8)], as.character)
+output[,c(1:5,8)]<-lapply(output[,c(1:5,8)], as.character)
+if(nrow(merge(output,data))==0){
+  data[nrow(data)+1,]<-output[1,]
+} 
+data<-data[order(data$Date),]   # Sort data
+
+#the accumulated data
+fit<-lm(FlowMeter_Discharge_cms~SaltInjection_Discharge_cms, data)
+
+
+# plot
+{plot(data$SaltInjection_Discharge_cms,data$FlowMeter_Discharge_cms,
+     main = "Salt Injection vs. Flow Meter",
+     xlab = "Discharge from Salt injection (QSI) (cms)",
+     ylab = "Discharge from Flow Meter (QFM) (cms)")
+abline(fit$coefficients, lty=6, col="red")
+abline(0,1,col="gray")
+cf <- round(coef(fit), 2)
+# text(0.02, 0.005, labels = paste("QFM =",cf[1], ifelse(sign(cf[2])==1, " + ", " - "), 
+#                             abs(cf[2]), " QSI ", sep = " "))
+legend(0.07, 0.05,legend=c(paste("Regression: QFM =",cf[1], ifelse(sign(cf[2])==1, " + ", " - "), 
+                            abs(cf[2]), " QSI ", sep = " ")
+                            , "1:1 reference"),
+       col=c("red", "gray"), lty=c(6,1), cex=1)}
+```
+
+```{r export, include=F, message=F}
+
+write.table(StandardCurve,paste("./result/StandardCurve_",Date,".txt",sep = ""),
+            quote = F, col.names = T, row.names = F)
+
+write.table(data,"./result/Salt_Injection_Discharge.txt", quote = F,
+            col.names = T, row.names = F)
+```
+
+<br/>
+<br/>
+
+# Reference
+* Young, K. B. (1950). A comparative study of mean-section and mid-section methods for computation of discharge measurements (Vol. 1950).
+* Moore, R. D. D. (2003). Introduction to Salt Dilution Gauging for Streamflow Measurement: Part 1, 7(4), 20-23.
+* Moore, R. D. D. (2005). Inside this issue : Watersheds : A Discussion, 8(2).
+

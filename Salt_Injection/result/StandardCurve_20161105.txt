@@ -1,0 +1,5 @@
+Salt_mg StreamWater_L Concentration_mg.L Specific_Conductance_us.cm Temperature_C
+0 1 0 129.1 21.4
+120 0.6 200 535 21.8
+240 0.6 400 928 21.7
+0 NA NA 129.7 21.4
